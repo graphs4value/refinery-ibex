@@ -1,0 +1,97 @@
+# SPDX-FileCopyrightText: 2026 The Refinery Authors
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build
+on:
+  push:
+    branches:
+      - '**'
+      - '!gh-pages'
+  pull_request:
+    types: [opened, synchronize, reopened]
+jobs:
+  ibex:
+    name: Build IBEX binaries
+    strategy:
+      matrix:
+        os:
+          - name: ubuntu-26.04
+            artifact-suffix: linux-x86-64
+            interval-lib: gaol
+          - name: ubuntu-26.04-arm
+            artifact-suffix: linux-aarch64
+            interval-lib: filib
+          - name: windows-2025
+            artifact-suffix: win32-x86-64
+            interval-lib: filib
+          - name: macos-26
+            artifact-suffix: darwin-aarch64
+            interval-lib: gaol
+    runs-on: ${{ matrix.os.name }}
+    steps:
+      - name: Checkout IBEX
+        uses: actions/checkout@v6
+        with:
+          repository: ibex-team/ibex-lib
+          ref: ibex-2.9.1
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          java-version: 25
+          distribution: temurin
+      - name: Install flex and bison
+        uses: crazy-max/ghaction-chocolatey@dfdcf5bba9c0a16358a21c13a06ec5c89024b3ac
+        if: ${{ startsWith(matrix.os.name, 'windows-') }}
+        with:
+          args: install winflexbison
+      - name: CMake build
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DINTERVAL_LIB=${{ matrix.os.interval-lib }} -DBUILD_SHARED_LIBS=ON -DBUILD_JAVA_INTERFACE=ON -DJAVA_PACKAGE=tools.refinery.ibex ..
+          cmake --build . --config Release
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ibex-${{ matrix.os.artifact-suffix }}
+          path: |
+            build
+          retention-days: 5  # No need to preserve for long, since they are uploaded to GHCR
+  maven:
+    name: Build Maven artifacts
+    strategy:
+      matrix:
+        os:
+          - ubuntu-26.04
+          - ubuntu-26.04-arm
+          - windows-2025
+          - macos-26
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          java-version: 25
+          distribution: temurin
+      - name: Cache Gradle packages
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+          key: ${{ matrix.os }}-gradle-${{ hashFiles('**/*.gradle', 'gradle.properties', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: ${{ matrix.os }}-gradle
+      - name: Gradle build
+        run: |
+          ./gradlew build -Pci --info --stacktrace --max-workers 4 --no-daemon
+  reuse-check:
+    name: REUSE Compliance Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: REUSE Compliance Check
+      uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5
+      with:
+        args: --include-meson-subprojects lint

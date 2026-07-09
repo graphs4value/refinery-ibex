@@ -92,12 +92,12 @@ publishing {
 					}
 				}
 				scm {
-					connection = "scm:git:https://github.com/graphs4value/refinery-z3.git"
-					developerConnection = "scm:git:ssh://github.com:graphs4value/refinery-z3.git"
-					url = "https://github.com/graphs4value/refinery-z3"
+					connection = "scm:git:https://github.com/graphs4value/refinery-ibex.git"
+					developerConnection = "scm:git:ssh://github.com:graphs4value/refinery-ibex.git"
+					url = "https://github.com/graphs4value/refinery-ibex"
 				}
 				issueManagement {
-					url = "https://github.com/graphs4value/refinery-z3/issues"
+					url = "https://github.com/graphs4value/refinery-ibex/issues"
 				}
 			}
 		}
@@ -113,7 +113,8 @@ publishing {
 
 signing {
 	setRequired {
-		!version.toString().endsWith("SNAPSHOT") && gradle.taskGraph.hasTask("publish")
+		!version.toString().endsWith("SNAPSHOT") &&
+			(project.hasProperty("forceSign") || gradle.taskGraph.hasTask("publish"))
 	}
 	val signingKeyId = System.getenv("PGP_KEY_ID")
 	val signingKey = System.getenv("PGP_KEY")

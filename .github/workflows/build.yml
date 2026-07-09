@@ -10,22 +10,45 @@ on:
       - '!gh-pages'
   pull_request:
     types: [opened, synchronize, reopened]
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  RUNNER_UBUNTU: &runner-ubuntu ubuntu-26.04
+  RUNNER_UBUNTU_ARM: &runner-ubuntu-arm ubuntu-26.04-arm
+  RUNNER_WINDOWS: &runner-windows windows-2025
+  RUNNER_MACOS: &runner-macos macos-26
 jobs:
+  ibex-version:
+    name: Determine IBEX version
+    runs-on: *runner-ubuntu
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Read version from gradle.properties
+        id: get-version
+        run: |
+          version=$(grep -oP '^version=\K.*' gradle.properties)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
   ibex:
     name: Build IBEX binaries
+    needs: ibex-version
     strategy:
+      fail-fast: false
       matrix:
         os:
-          - name: ubuntu-26.04
+          - name: *runner-ubuntu
             artifact-suffix: linux-x86-64
             interval-lib: gaol
-          - name: ubuntu-26.04-arm
+          - name: *runner-ubuntu-arm
             artifact-suffix: linux-aarch64
             interval-lib: filib
-          - name: windows-2025
+          - name: *runner-windows
             artifact-suffix: win32-x86-64
             interval-lib: filib
-          - name: macos-26
+          - name: *runner-macos
             artifact-suffix: darwin-aarch64
             interval-lib: gaol
     runs-on: ${{ matrix.os.name }}
@@ -34,7 +57,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: ibex-team/ibex-lib
-          ref: ibex-2.9.1
+          ref: ibex-${{ needs.ibex-version.outputs.version }}
       - name: Set up JDK 25
         uses: actions/setup-java@v5
         with:
@@ -57,17 +80,18 @@ jobs:
         with:
           name: ibex-${{ matrix.os.artifact-suffix }}
           path: build
-          retention-days: 5  # Artifact internal to the workflow`
+          retention-days: 5  # Artifact internal to the workflow
   maven:
     name: Build Maven artifacts
     needs: ibex
     strategy:
+      fail-fast: false
       matrix:
         os:
-          - ubuntu-26.04
-          - ubuntu-26.04-arm
-          - windows-2025
-          - macos-26
+          - *runner-ubuntu
+          - *runner-ubuntu-arm
+          - *runner-windows
+          - *runner-macos
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -82,7 +106,7 @@ jobs:
         with:
           path: |
             ~/.gradle/caches
-          key: ${{ matrix.os }}-gradle-${{ hashFiles('**/*.gradle', 'gradle.properties', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          key: ${{ matrix.os }}-gradle-${{ hashFiles('**/*.gradle.kts', 'gradle.properties', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: ${{ matrix.os }}-gradle
       - name: Download IBEX artifacts
         uses: actions/download-artifact@v8
@@ -104,9 +128,37 @@ jobs:
       - name: Gradle build
         run: |
           ./gradlew build -Pci --info --stacktrace --max-workers 4 --no-daemon
+      - name: Build signed Maven repository
+        if: ${{ matrix.os == env.RUNNER_UBUNTU && github.event_name == 'push' && github.repository_owner == 'graphs4value' }}
+        env:
+          PGP_KEY: ${{ secrets.PGP_KEY }}
+          PGP_KEY_ID: ${{ secrets.PGP_KEY_ID }}
+          PGP_PASSWORD: ${{ secrets.PGP_PASSWORD }}
+        run: |
+          ./gradlew mavenRepository -Pci -PforceSign --info --stacktrace --max-workers 4 --no-daemon
+      - name: Build unsigned Maven repository
+        if: ${{ matrix.os == env.RUNNER_UBUNTU && (github.event_name != 'push' || github.repository_owner != 'graphs4value') }}
+        run: |
+          ./gradlew mavenRepository -Pci --info --stacktrace --max-workers 4 --no-daemon
+      - name: Upload artifacts
+        if: ${{ matrix.os == env.RUNNER_UBUNTU }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: maven-repo
+          path: build/repo
+  clean:
+    name: Clean up artifacts
+    needs: maven
+    if: always()
+    runs-on: *runner-ubuntu
+    steps:
+      - name: Delete IBEX artifacts
+        uses: geekyeggo/delete-artifact@176a747ab7e287e3ff4787bf8a148716375ca118
+        with:
+          name: ibex-*
   reuse-check:
     name: REUSE Compliance Check
-    runs-on: ubuntu-latest
+    runs-on: *runner-ubuntu
     steps:
     - uses: actions/checkout@v6
     - name: REUSE Compliance Check

@@ -21,8 +21,8 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Map;
 
 public final class IbexSolverLoader {
-	private static final String JNI_LIBRARY_NAME = "ibexjava";
-	private static final String SOLVER_LIBRARY_NAME = "ibex";
+	private static final String LIBRARY_NAME = "ibex";
+	private static final String JNI_LIBRARY_NAME = LIBRARY_NAME + "-java";
 
 	private static boolean loaded;
 
@@ -35,7 +35,7 @@ public final class IbexSolverLoader {
 			return;
 		}
 		try {
-			System.loadLibrary(getOsSpecificLibraryName(JNI_LIBRARY_NAME));
+			System.loadLibrary(JNI_LIBRARY_NAME);
 			loaded = true;
 			return;
 		} catch (UnsatisfiedLinkError e) {
@@ -45,12 +45,12 @@ public final class IbexSolverLoader {
 			extractAndLoad();
 			loaded = true;
 		} catch (IOException e) {
-			throw new IllegalStateException("Could not extract and load " + JNI_LIBRARY_NAME, e);
+			throw new IllegalStateException("Could not extract and load " + LIBRARY_NAME, e);
 		}
 	}
 
 	private static void extractAndLoad() throws IOException {
-		var resourceName = JNI_LIBRARY_NAME + "-" + Platform.RESOURCE_PREFIX;
+		var resourceName = LIBRARY_NAME + "-" + Platform.RESOURCE_PREFIX;
 		var resource = IbexSolverLoader.class.getClassLoader().getResource(resourceName);
 		if (resource == null) {
 			throw new IllegalStateException("Resource %s was not found".formatted(resourceName));
@@ -83,12 +83,16 @@ public final class IbexSolverLoader {
 			}
 		}
 		// We can't rely on RPATH, so we load libraries in reverse dependency order manually.
-		loadFromPath(extractedPath, SOLVER_LIBRARY_NAME);
+		// Some libraries are only used on specific platforms, so load them conditionally.
+		loadFromPath(extractedPath, "ultim", true);
+		loadFromPath(extractedPath, "gaol", true);
+		loadFromPath(extractedPath, "prim", true);
+		loadFromPath(extractedPath, LIBRARY_NAME);
 		loadFromPath(extractedPath, JNI_LIBRARY_NAME);
 	}
 
 	private static Path extract(Path resourcePath) throws IOException {
-		var tempDir = Files.createTempDirectory(JNI_LIBRARY_NAME).toAbsolutePath();
+		var tempDir = Files.createTempDirectory(LIBRARY_NAME).toAbsolutePath();
 		tempDir.toFile().deleteOnExit();
 		Files.walkFileTree(resourcePath, new SimpleFileVisitor<>() {
 			@Override
@@ -123,20 +127,15 @@ public final class IbexSolverLoader {
 		return targetPath;
 	}
 
-	private static String getOsSpecificLibraryName(String libraryName) {
-		var osSpecificLibraryNamePrefix = Platform.isWindows() ? "lib" : "";
-		return osSpecificLibraryNamePrefix + libraryName;
-	}
-
 	private static void loadFromPath(Path extractedPath, String libraryName) {
-		var osSpecificLibraryName = getOsSpecificLibraryName(libraryName);
-		loadFromPathExactName(extractedPath, System.mapLibraryName(osSpecificLibraryName));
+		loadFromPath(extractedPath, libraryName, false);
 	}
 
-	private static void loadFromPathExactName(Path extractedPath, String exactName) {
-		var library = extractedPath.resolve(exactName)
-				.toAbsolutePath()
-				.toString();
-		System.load(library);
+	private static void loadFromPath(Path extractedPath, String libraryName, boolean ifExists) {
+		var libraryPath = extractedPath.resolve(System.mapLibraryName(libraryName)).toAbsolutePath();
+		if (ifExists && !libraryPath.toFile().exists()) {
+			return;
+		}
+		System.load(libraryPath.toString());
 	}
 }

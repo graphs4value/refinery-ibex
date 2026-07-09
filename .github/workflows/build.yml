@@ -46,6 +46,7 @@ jobs:
         with:
           args: install winflexbison
       - name: CMake build
+        shell: bash
         run: |
           mkdir build
           cd build
@@ -55,11 +56,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ibex-${{ matrix.os.artifact-suffix }}
-          path: |
-            build
-          retention-days: 5  # No need to preserve for long, since they are uploaded to GHCR
+          path: build
+          retention-days: 5  # Artifact internal to the workflow`
   maven:
     name: Build Maven artifacts
+    needs: ibex
     strategy:
       matrix:
         os:
@@ -83,6 +84,23 @@ jobs:
             ~/.gradle/caches
           key: ${{ matrix.os }}-gradle-${{ hashFiles('**/*.gradle', 'gradle.properties', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: ${{ matrix.os }}-gradle
+      - name: Download IBEX artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          pattern: ibex-*
+      - name: Copy artifacts to source directories
+        shell: bash
+        run: |
+          mkdir -p subprojects/solver-linux-x86-64/src/main/resources/ibex-linux-x86-64
+          cp artifacts/ibex-linux-x86-64/{src/libibex.so,src/java/libibex-java.so,interval_lib_wrapper/gaol/gaol-*-build/libgaol.so,interval_lib_wrapper/gaol/mathlib-*-build/libultim.so} subprojects/solver-linux-x86-64/src/main/resources/ibex-linux-x86-64
+          grep -v loadLibrary artifacts/ibex-linux-x86-64/src/java/Ibex.java > subprojects/solver/src/main/java/tools/refinery/ibex/Ibex.java
+          mkdir -p subprojects/solver-linux-aarch64/src/main/resources/ibex-linux-aarch64
+          cp artifacts/ibex-linux-aarch64/{src/libibex.so,src/java/libibex-java.so,interval_lib_wrapper/filib/filibsrc-*-build/libprim.so} subprojects/solver-linux-aarch64/src/main/resources/ibex-linux-aarch64
+          mkdir -p subprojects/solver-darwin-aarch64/src/main/resources/ibex-darwin-aarch64
+          cp artifacts/ibex-darwin-aarch64/{src/libibex.dylib,src/java/libibex-java.dylib,interval_lib_wrapper/gaol/gaol-*-build/libgaol.dylib,interval_lib_wrapper/gaol/mathlib-*-build/libultim.dylib} subprojects/solver-darwin-aarch64/src/main/resources/ibex-darwin-aarch64
+          mkdir -p subprojects/solver-win32-x86-64/src/main/resources/ibex-win32-x86-64
+          cp artifacts/ibex-win32-x86-64/{src/Release/ibex.dll,src/java/Release/ibex-java.dll} subprojects/solver-win32-x86-64/src/main/resources/ibex-win32-x86-64
       - name: Gradle build
         run: |
           ./gradlew build -Pci --info --stacktrace --max-workers 4 --no-daemon

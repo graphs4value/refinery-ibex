@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2021-2023 The Refinery Authors
+# SPDX-FileCopyrightText: 2026 The Refinery Authors
 #
 # SPDX-License-Identifier: CC0-1.0
 
@@ -12,3 +12,7 @@
 .settings
 bin/
 build/
+
+# Ignore artifacts copied from the IBEX build.
+subprojects/*/src/main/resources
+subprojects/solver/src/main/java/**/Ibex.java

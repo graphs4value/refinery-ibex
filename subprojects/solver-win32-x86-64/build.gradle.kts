@@ -5,7 +5,7 @@
  */
 
 plugins {
-	id("tools.refinery.ibex.gradle.java-library")
+	id("tools.refinery.ibex.gradle.native-library")
 }
 
 mavenArtifact.nameSuffix = "Win32 x86_64"

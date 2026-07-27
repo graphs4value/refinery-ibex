@@ -12,3 +12,7 @@ plugins {
 repositories {
 	mavenCentral()
 }
+
+dependencies {
+	implementation(libs.jna)
+}

@@ -14,10 +14,12 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 env:
-  RUNNER_UBUNTU: &runner-ubuntu ubuntu-26.04
-  RUNNER_UBUNTU_ARM: &runner-ubuntu-arm ubuntu-26.04-arm
-  RUNNER_WINDOWS: &runner-windows windows-2025
-  RUNNER_MACOS: &runner-macos macos-26
+  # Use older runner images for as wide binary compatibility as possible.
+  RUNNER_UBUNTU: &runner-ubuntu ubuntu-22.04
+  RUNNER_UBUNTU_ARM: &runner-ubuntu-arm ubuntu-22.04-arm
+  RUNNER_WINDOWS: &runner-windows windows-2022
+  RUNNER_MACOS: &runner-macos macos-15
+  RUNNER_MACOS_INTEL: &runner-macos-intel macos-15-intel
 jobs:
   ibex-version:
     name: Determine IBEX version
@@ -51,6 +53,9 @@ jobs:
           - name: *runner-macos
             artifact-suffix: darwin-aarch64
             interval-lib: gaol
+          - name: *runner-macos-intel
+            artifact-suffix: darwin-x86-64
+            interval-lib: filib
     runs-on: ${{ matrix.os.name }}
     steps:
       - name: Checkout IBEX
@@ -69,6 +74,9 @@ jobs:
         with:
           args: install winflexbison
       - name: CMake build
+        env:
+          # Support older macOS releases (but the corresponding GitHub CI runner is already deprecated).
+          MACOSX_DEPLOYMENT_TARGET: 14.0
         shell: bash
         run: |
           mkdir build
@@ -92,6 +100,7 @@ jobs:
           - *runner-ubuntu-arm
           - *runner-windows
           - *runner-macos
+          - *runner-macos-intel
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -121,6 +130,8 @@ jobs:
           grep -v loadLibrary artifacts/ibex-linux-x86-64/src/java/Ibex.java > subprojects/solver/src/main/java/tools/refinery/ibex/Ibex.java
           mkdir -p subprojects/solver-linux-aarch64/src/main/resources/ibex-java-linux-aarch64
           cp artifacts/ibex-linux-aarch64/{src/libibex.so,src/java/libibex-java.so,interval_lib_wrapper/filib/filibsrc-*-build/libprim.so.0} subprojects/solver-linux-aarch64/src/main/resources/ibex-java-linux-aarch64
+          mkdir -p subprojects/solver-darwin-x86-64/src/main/resources/ibex-java-darwin-x86-64
+          cp artifacts/ibex-darwin-x86-64/{src/libibex.dylib,src/java/libibex-java.dylib,interval_lib_wrapper/filib/filibsrc-*-build/libprim.0.dylib} subprojects/solver-darwin-x86-64/src/main/resources/ibex-java-darwin-x86-64
           mkdir -p subprojects/solver-darwin-aarch64/src/main/resources/ibex-java-darwin-aarch64
           cp artifacts/ibex-darwin-aarch64/{src/libibex.dylib,src/java/libibex-java.dylib,interval_lib_wrapper/gaol/gaol-*-build/libgaol.0.dylib,interval_lib_wrapper/gaol/mathlib-*-build/libultim.0.dylib} subprojects/solver-darwin-aarch64/src/main/resources/ibex-java-darwin-aarch64
           mkdir -p subprojects/solver-win32-x86-64/src/main/resources/ibex-java-win32-x86-64

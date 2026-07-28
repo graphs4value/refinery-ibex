@@ -38,12 +38,11 @@ val noticeText = """
 
 	    ${project.group}:${project.name}:${project.version} (classifier `sources`)
 
-	It is a verbatim copy of https://github.com/ibex-team/ibex-lib/tree/$ibexCommit
-
-	Take note that the IBEX sources also vendor SoPlex 4.0.2 under `lp_lib_wrapper/soplex/3rd`, which is distributed
-	under the ZIB Academic License instead of an open source license. IBEX is built with its default `LP_LIB=none`
-	setting, so SoPlex is neither compiled nor distributed in any of our artifacts, but its license applies if you
-	redistribute the embedded source archive.
+	It is a copy of https://github.com/ibex-team/ibex-lib/tree/$ibexCommit with the single deviation that the
+	`lp_lib_wrapper/soplex/3rd` directory was left out. That directory holds the vendored source code of SoPlex 4.0.2
+	and the patches derived from it, which are distributed under the ZIB Academic License instead of an open source
+	license, and is available free of charge from https://soplex.zib.de/ instead. IBEX is built with its default
+	`LP_LIB=none` setting, so SoPlex is neither compiled into nor distributed with any of our artifacts.
 """.trimIndent() + "\n"
 
 val upstreamSourceNotice = tasks.register("upstreamSourceNotice") {

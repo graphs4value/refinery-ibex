@@ -22,7 +22,7 @@ env:
   RUNNER_MACOS_INTEL: &runner-macos-intel macos-15-intel
 jobs:
   ibex-version:
-    name: Determine IBEX version
+    name: Determine IBEX version and package sources
     runs-on: *runner-ubuntu
     outputs:
       version: ${{ steps.get-version.outputs.version }}
@@ -42,6 +42,38 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - name: Checkout IBEX
+        uses: actions/checkout@v6
+        with:
+          repository: ibex-team/ibex-lib
+          ref: ibex-${{ steps.get-version.outputs.version }}
+          path: ibex
+      - name: Verify IBEX commit
+        working-directory: ibex
+        env:
+          EXPECTED_COMMIT: ${{ steps.get-version.outputs.commit }}
+        run: |
+          # Make sure the upstream tag still points to the commit we have pinned.
+          actual_commit=$(git rev-parse HEAD)
+          if [ "$actual_commit" != "$EXPECTED_COMMIT" ]; then
+            echo "::error::Tag ibex-${{ steps.get-version.outputs.version }} points to $actual_commit, but $EXPECTED_COMMIT was expected"
+            exit 1
+          fi
+      - name: Package IBEX sources
+        # The LGPL requires us to distribute the IBEX sources along with the native libraries built from them. The
+        # vendored SoPlex sources and the patches derived from them are left out, because they are distributed under
+        # the ZIB Academic License and are not built into our artifacts anyway (IBEX defaults to LP_LIB=none).
+        working-directory: ibex
+        run: |
+          git archive --format=tar.gz \
+            --prefix=ibex-lib-${{ steps.get-version.outputs.version }}/ \
+            -o ../ibex-src.tar.gz HEAD -- . ':(exclude)lp_lib_wrapper/soplex/3rd'
+      - name: Upload IBEX sources
+        uses: actions/upload-artifact@v7
+        with:
+          name: ibex-source
+          path: ibex-src.tar.gz
+          retention-days: 5  # Artifact internal to the workflow
   ibex:
     name: Build IBEX binaries
     needs: ibex-version
@@ -66,39 +98,17 @@ jobs:
             interval-lib: filib
     runs-on: ${{ matrix.os.name }}
     steps:
-      - name: Checkout IBEX
-        uses: actions/checkout@v6
-        with:
-          repository: ibex-team/ibex-lib
-          ref: ibex-${{ needs.ibex-version.outputs.version }}
-      - name: Verify IBEX commit
-        shell: bash
-        env:
-          EXPECTED_COMMIT: ${{ needs.ibex-version.outputs.commit }}
-        run: |
-          # Make sure the upstream tag still points to the commit we have pinned.
-          actual_commit=$(git rev-parse HEAD)
-          if [ "$actual_commit" != "$EXPECTED_COMMIT" ]; then
-            echo "::error::Tag ibex-${{ needs.ibex-version.outputs.version }} points to $actual_commit, but $EXPECTED_COMMIT was expected"
-            exit 1
-          fi
-      - name: Package IBEX sources
-        # The LGPL requires us to distribute the IBEX sources along with the native libraries built from them.
-        # The sources are the same on every platform, so we only have to package them once.
-        if: ${{ matrix.os.artifact-suffix == 'linux-x86-64' }}
-        shell: bash
-        run: |
-          # Archive the pristine tag contents before the build creates any output in the working tree.
-          git archive --format=tar.gz \
-            --prefix=ibex-lib-${{ needs.ibex-version.outputs.version }}/ \
-            -o "$RUNNER_TEMP/ibex-src.tar.gz" HEAD
-      - name: Upload IBEX sources
-        if: ${{ matrix.os.artifact-suffix == 'linux-x86-64' }}
-        uses: actions/upload-artifact@v7
+      - name: Download IBEX sources
+        uses: actions/download-artifact@v8
         with:
           name: ibex-source
-          path: ${{ runner.temp }}/ibex-src.tar.gz
-          retention-days: 5  # Artifact internal to the workflow
+      - name: Extract IBEX sources
+        # Building from the archive we ship, instead of from a checkout, keeps the binaries in correspondence with
+        # the sources and fails the build if the packaged source tree can't be built on its own.
+        shell: bash
+        run: |
+          mkdir ibex-src
+          tar xzf ibex-src.tar.gz -C ibex-src --strip-components=1
       - name: Set up JDK 25
         uses: actions/setup-java@v5
         with:
@@ -113,6 +123,7 @@ jobs:
         env:
           # Support older macOS releases (but the corresponding GitHub CI runner is already deprecated).
           MACOSX_DEPLOYMENT_TARGET: 14.0
+        working-directory: ibex-src
         shell: bash
         run: |
           mkdir build
@@ -123,7 +134,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ibex-${{ matrix.os.artifact-suffix }}
-          path: build
+          path: ibex-src/build
           retention-days: 5  # Artifact internal to the workflow
   maven:
     name: Build Maven artifacts

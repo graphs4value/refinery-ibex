@@ -8,4 +8,4 @@ plugins {
 	id("tools.refinery.ibex.gradle.native-library")
 }
 
-mavenArtifact.nameSuffix = "Darwin x86_64"
+refinery.nameSuffix = "Darwin x86_64"

@@ -8,4 +8,4 @@ plugins {
 	id("tools.refinery.ibex.gradle.native-library")
 }
 
-mavenArtifact.nameSuffix = "Linux aarch64"
+refinery.nameSuffix = "Linux aarch64"

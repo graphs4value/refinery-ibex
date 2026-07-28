@@ -17,3 +17,4 @@ build/
 subprojects/*/src/main/resources/*
 !subprojects/*/src/main/resources/COPYING.LESSER
 subprojects/solver/src/main/java/**/Ibex.java
+subprojects/solver/src/upstream/

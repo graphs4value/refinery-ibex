@@ -8,6 +8,57 @@ plugins {
 	id("tools.refinery.ibex.gradle.java-library")
 }
 
+// The LGPL requires us to distribute the source code of IBEX along with the native libraries built from it, so we
+// embed the upstream source tree into this sources jar. The archive is created by the CI build, which copies it into
+// {@code src/upstream}; see {@code .github/workflows/build.yml}.
+val upstreamSourceArchive = layout.projectDirectory.file("src/upstream/ibex-src.tar.gz")
+val upstreamSourceArchiveName = "ibex-lib-${refinery.ibexVersion}-src.tar.gz"
+val ibexCommit: String = providers.gradleProperty("tools.refinery.ibex.commit").get()
+
+val noticeFile = layout.buildDirectory.file("generated/upstream/IBEX-SOURCE.md")
+val noticeText = """
+	# IBEX source code
+
+	The native libraries distributed in the `${project.group}:${project.name}-*` artifacts are built from
+	[IBEX](https://github.com/ibex-team/ibex-lib) ${refinery.ibexVersion}, which is licensed under the GNU Lesser
+	General Public License, version 3 or later (see `COPYING.LESSER`).
+
+	The complete corresponding source code of IBEX is embedded in this sources jar as
+	`$upstreamSourceArchiveName`. It is a verbatim copy of
+	https://github.com/ibex-team/ibex-lib/tree/$ibexCommit
+""".trimIndent() + "\n"
+
+val upstreamSourceNotice = tasks.register("upstreamSourceNotice") {
+	description = "Generate the notice pointing at the embedded IBEX sources"
+	// Rebind as locals, so that the action below doesn't have to reference the build script.
+	val outputFile = noticeFile
+	val text = noticeText
+	inputs.property("noticeText", text)
+	outputs.file(outputFile)
+	doLast {
+		outputFile.get().asFile.writeText(text)
+	}
+}
+
+tasks.named<Jar>("sourcesJar") {
+	// Rebind as locals, so that the actions below don't have to reference the build script.
+	val archiveName = upstreamSourceArchiveName
+	val archiveFile = upstreamSourceArchive.asFile
+	from(upstreamSourceNotice)
+	from(upstreamSourceArchive) {
+		rename { archiveName }
+	}
+	// A missing archive would silently produce a sources jar that doesn't satisfy the LGPL, so fail loudly instead.
+	doFirst {
+		if (!archiveFile.exists()) {
+			throw GradleException(
+				"Missing IBEX source archive at $archiveFile. It is built by the ibex job of the CI workflow " +
+						"and must be copied here before packaging."
+			)
+		}
+	}
+}
+
 // Subprojects packaging the native libraries, keyed by the JNA resource prefix of the platform they target.
 val nativeLibraryProjects = rootProject.subprojects
 	.filter { it.name.startsWith("${project.name}-") }

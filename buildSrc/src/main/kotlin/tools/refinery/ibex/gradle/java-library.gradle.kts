@@ -41,8 +41,10 @@ tasks {
 	}
 
 	named<Jar>("sourcesJar") {
-		// No need to include binary resources in the sources jars.
-		exclude("**/*.dll", "**/*.dylib", "**/*.so")
+		// No need to include binary resources in the sources jars. Shared libraries on Linux carry their version
+		// after the extension, e.g., {@code libgaol.so.0}, while on macOS it comes before, e.g.,
+		// {@code libgaol.0.dylib}, which is already matched by the {@code *.dylib} pattern.
+		exclude("**/*.dll", "**/*.dylib", "**/*.so", "**/*.so.*")
 	}
 
 	javadoc {

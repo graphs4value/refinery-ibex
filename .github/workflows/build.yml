@@ -82,6 +82,23 @@ jobs:
             echo "::error::Tag ibex-${{ needs.ibex-version.outputs.version }} points to $actual_commit, but $EXPECTED_COMMIT was expected"
             exit 1
           fi
+      - name: Package IBEX sources
+        # The LGPL requires us to distribute the IBEX sources along with the native libraries built from them.
+        # The sources are the same on every platform, so we only have to package them once.
+        if: ${{ matrix.os.artifact-suffix == 'linux-x86-64' }}
+        shell: bash
+        run: |
+          # Archive the pristine tag contents before the build creates any output in the working tree.
+          git archive --format=tar.gz \
+            --prefix=ibex-lib-${{ needs.ibex-version.outputs.version }}/ \
+            -o "$RUNNER_TEMP/ibex-src.tar.gz" HEAD
+      - name: Upload IBEX sources
+        if: ${{ matrix.os.artifact-suffix == 'linux-x86-64' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ibex-source
+          path: ${{ runner.temp }}/ibex-src.tar.gz
+          retention-days: 5  # Artifact internal to the workflow
       - name: Set up JDK 25
         uses: actions/setup-java@v5
         with:
@@ -155,6 +172,8 @@ jobs:
           cp artifacts/ibex-darwin-aarch64/{src/libibex.dylib,src/java/libibex-java.dylib,interval_lib_wrapper/gaol/gaol-*-build/libgaol.0.dylib,interval_lib_wrapper/gaol/mathlib-*-build/libultim.0.dylib} subprojects/solver-darwin-aarch64/src/main/resources/ibex-java-darwin-aarch64
           mkdir -p subprojects/solver-win32-x86-64/src/main/resources/ibex-java-win32-x86-64
           cp artifacts/ibex-win32-x86-64/{src/Release/ibex.dll,src/java/Release/ibex-java.dll} subprojects/solver-win32-x86-64/src/main/resources/ibex-java-win32-x86-64
+          mkdir -p subprojects/solver/src/upstream
+          cp artifacts/ibex-source/ibex-src.tar.gz subprojects/solver/src/upstream
       - name: Gradle build
         run: |
           ./gradlew build -Pci --info --stacktrace --max-workers 4 --no-daemon

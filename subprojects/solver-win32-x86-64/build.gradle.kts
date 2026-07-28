@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import tools.refinery.ibex.gradle.IntervalLib
+
 plugins {
 	id("tools.refinery.ibex.gradle.native-library")
 }
 
 refinery.nameSuffix = "Win32 x86_64"
+refinery.intervalLib = IntervalLib.FILIB

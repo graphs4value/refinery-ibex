@@ -19,19 +19,43 @@ val libraryResourcesDir = layout.projectDirectory.dir("src/main/resources/$libra
 val refinery = extensions.getByType<RefineryIbexExtension>()
 val ibexCommit = providers.gradleProperty("tools.refinery.ibex.commit").get()
 val noticeFile = layout.buildDirectory.file("generated/upstream/IBEX-SOURCE.md")
-val noticeText = """
-    # IBEX source code
+val noticeText = refinery.intervalLib.map { intervalLib ->
+    // IBEX vendors the source code of every interval arithmetic library it supports, but the native libraries of
+    // this platform are built with (and link against) only the one selected here.
+    val intervalLibNotice = when (intervalLib) {
+        IntervalLib.GAOL -> """
+            The native libraries are built with the GAOL interval arithmetic library and the MathLib library it
+            relies on, which are licensed under the GNU Lesser General Public License, version 2 or later. Their
+            source code is vendored in the IBEX sources under `interval_lib_wrapper/gaol/3rd`.
+        """
+        IntervalLib.FILIB -> """
+            The native libraries are built with the filib++ interval arithmetic library, which is licensed under the
+            GNU Lesser General Public License, version 2.1 or later. Its source code is vendored in the IBEX sources
+            under `interval_lib_wrapper/filib/3rd`.
+        """
+    }.trimIndent()
+    // The paragraphs are joined instead of interpolated, because {@code trimIndent} would get confused by the
+    // already unindented lines of the interval library notice.
+    val paragraphs = listOf(
+        """
+            # IBEX source code
 
-    This artifact bundles native libraries built from [IBEX](https://github.com/ibex-team/ibex-lib)
-    ${refinery.ibexVersion}, which is licensed under the GNU Lesser General Public License, version 3 or later
-    (see `COPYING.LESSER`).
+            This artifact bundles native libraries built from [IBEX](https://github.com/ibex-team/ibex-lib)
+            ${refinery.ibexVersion}, which is licensed under the GNU Lesser General Public License, version 3 or
+            later (see `COPYING.LESSER`).
+        """.trimIndent(),
+        intervalLibNotice,
+        """
+            The complete corresponding source code of IBEX, including the vendored interval arithmetic libraries, is
+            embedded in the sources jar of
 
-    The complete corresponding source code of IBEX is embedded in the sources jar of
+                ${project.group}:$solverProjectName:${project.version} (classifier `sources`)
 
-        ${project.group}:$solverProjectName:${project.version} (classifier `sources`)
-
-    It is a verbatim copy of https://github.com/ibex-team/ibex-lib/tree/$ibexCommit
-""".trimIndent() + "\n"
+            It is a verbatim copy of https://github.com/ibex-team/ibex-lib/tree/$ibexCommit
+        """.trimIndent(),
+    )
+    paragraphs.joinToString("\n\n") + "\n"
+}
 
 val upstreamSourceNotice = tasks.register("upstreamSourceNotice") {
     description = "Generate the notice pointing at the IBEX sources"
@@ -41,8 +65,13 @@ val upstreamSourceNotice = tasks.register("upstreamSourceNotice") {
     inputs.property("noticeText", text)
     outputs.file(outputFile)
     doLast {
-        outputFile.get().asFile.writeText(text)
+        outputFile.get().asFile.writeText(text.get())
     }
+}
+
+// Consumers of the binary jar have to be able to find the sources, too.
+tasks.named<Jar>("jar") {
+    from(upstreamSourceNotice)
 }
 
 tasks.named<Jar>("sourcesJar") {

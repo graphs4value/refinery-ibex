@@ -23,4 +23,6 @@ public abstract class RefineryIbexExtension {
     }
 
     public abstract Property<String> getNameSuffix();
+
+    public abstract Property<IntervalLib> getIntervalLib();
 }

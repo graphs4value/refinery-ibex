@@ -23,9 +23,27 @@ val noticeText = """
 	[IBEX](https://github.com/ibex-team/ibex-lib) ${refinery.ibexVersion}, which is licensed under the GNU Lesser
 	General Public License, version 3 or later (see `COPYING.LESSER`).
 
-	The complete corresponding source code of IBEX is embedded in this sources jar as
-	`$upstreamSourceArchiveName`. It is a verbatim copy of
-	https://github.com/ibex-team/ibex-lib/tree/$ibexCommit
+	IBEX vendors the source code of the interval arithmetic libraries it can be built with. Depending on the
+	platform, the native libraries are built with either
+
+	  * GAOL and the MathLib library it relies on, which are licensed under the GNU Lesser General Public License,
+	    version 2 or later (vendored under `interval_lib_wrapper/gaol/3rd`), or
+	  * filib++, which is licensed under the GNU Lesser General Public License, version 2.1 or later (vendored under
+	    `interval_lib_wrapper/filib/3rd`).
+
+	See the `IBEX-SOURCE.md` of each platform-specific artifact for the library it was built with.
+
+	The complete corresponding source code of IBEX, including the vendored interval arithmetic libraries, is embedded
+	as `$upstreamSourceArchiveName` in the sources jar of
+
+	    ${project.group}:${project.name}:${project.version} (classifier `sources`)
+
+	It is a verbatim copy of https://github.com/ibex-team/ibex-lib/tree/$ibexCommit
+
+	Take note that the IBEX sources also vendor SoPlex 4.0.2 under `lp_lib_wrapper/soplex/3rd`, which is distributed
+	under the ZIB Academic License instead of an open source license. IBEX is built with its default `LP_LIB=none`
+	setting, so SoPlex is neither compiled nor distributed in any of our artifacts, but its license applies if you
+	redistribute the embedded source archive.
 """.trimIndent() + "\n"
 
 val upstreamSourceNotice = tasks.register("upstreamSourceNotice") {
@@ -38,6 +56,12 @@ val upstreamSourceNotice = tasks.register("upstreamSourceNotice") {
 	doLast {
 		outputFile.get().asFile.writeText(text)
 	}
+}
+
+// Consumers of the binary jars have to be able to find the sources, too, so the notice refers to the sources jar by
+// its coordinates instead of pointing at the archive next to it.
+tasks.named<Jar>("jar") {
+	from(upstreamSourceNotice)
 }
 
 tasks.named<Jar>("sourcesJar") {

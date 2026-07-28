@@ -20,20 +20,6 @@ val refinery = extensions.getByType<RefineryIbexExtension>()
 val ibexCommit = providers.gradleProperty("tools.refinery.ibex.commit").get()
 val noticeFile = layout.buildDirectory.file("generated/upstream/IBEX-SOURCE.md")
 val noticeText = refinery.intervalLib.map { intervalLib ->
-    // IBEX vendors the source code of every interval arithmetic library it supports, but the native libraries of
-    // this platform are built with (and link against) only the one selected here.
-    val intervalLibNotice = when (intervalLib) {
-        IntervalLib.GAOL -> """
-            The native libraries are built with the GAOL interval arithmetic library and the MathLib library it
-            relies on, which are licensed under the GNU Lesser General Public License, version 2 or later. Their
-            source code is vendored in the IBEX sources under `interval_lib_wrapper/gaol/3rd`.
-        """
-        IntervalLib.FILIB -> """
-            The native libraries are built with the filib++ interval arithmetic library, which is licensed under the
-            GNU Lesser General Public License, version 2.1 or later. Its source code is vendored in the IBEX sources
-            under `interval_lib_wrapper/filib/3rd`.
-        """
-    }.trimIndent()
     // The paragraphs are joined instead of interpolated, because {@code trimIndent} would get confused by the
     // already unindented lines of the interval library notice.
     val paragraphs = listOf(
@@ -44,14 +30,21 @@ val noticeText = refinery.intervalLib.map { intervalLib ->
             ${refinery.ibexVersion}, which is licensed under the GNU Lesser General Public License, version 3 or
             later (see `COPYING.LESSER`).
         """.trimIndent(),
-        intervalLibNotice,
+        // IBEX vendors the source code of every interval arithmetic library it supports, but the native libraries
+        // of this platform are built with (and link against) only the one selected here.
+        """
+            The native libraries are built with ${intervalLib.description}, whose source code is vendored in the
+            IBEX sources under `${intervalLib.vendoredPath}` and licensed under the ${intervalLib.licenseName}.
+        """.trimIndent(),
         """
             The complete corresponding source code of IBEX, including the vendored interval arithmetic libraries, is
             embedded in the sources jar of
 
                 ${project.group}:$solverProjectName:${project.version} (classifier `sources`)
 
-            It is a verbatim copy of https://github.com/ibex-team/ibex-lib/tree/$ibexCommit
+            It is a copy of https://github.com/ibex-team/ibex-lib/tree/$ibexCommit with the vendored SoPlex sources
+            left out, which are not built into these native libraries. See the `IBEX-SOURCE.md` of that artifact for
+            details.
         """.trimIndent(),
     )
     paragraphs.joinToString("\n\n") + "\n"

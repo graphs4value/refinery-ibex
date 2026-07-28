@@ -14,5 +14,6 @@ repositories {
 }
 
 dependencies {
+	implementation(libs.cyclonedx)
 	implementation(libs.jna)
 }

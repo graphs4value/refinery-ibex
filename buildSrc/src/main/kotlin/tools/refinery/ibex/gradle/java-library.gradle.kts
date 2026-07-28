@@ -69,10 +69,39 @@ tasks {
 	}
 }
 
+// The interval arithmetic libraries the artifacts published by this project distribute: the single one the native
+// libraries were built with, or — in the main project, which has none — all of them, because it embeds the IBEX
+// sources they are vendored in.
+val distributedIntervalLibs = refinery.intervalLib
+	.map { listOf(it) }
+	.orElse(IntervalLib.values().toList())
+
+val cyclonedxBom = tasks.register<GenerateCycloneDxBomTask>("cyclonedxBom") {
+	description = "Generate a CycloneDX SBOM recording the bundled upstream code"
+	artifactGroup = project.group.toString()
+	artifactName = project.name
+	artifactVersion = project.version.toString()
+	ibexVersion = refinery.ibexVersion
+	ibexCommit = providers.gradleProperty("tools.refinery.ibex.commit")
+	intervalLibs = distributedIntervalLibs
+	bundledAsBinary = refinery.intervalLib.map { true }.orElse(false)
+	outputFile = layout.buildDirectory.file("cyclonedx/bom.json")
+}
+
+// Attaching the SBOM to the publication doesn't make anything but publishing build it, but it is validated as it is
+// generated, so we want an ordinary build to cover it, too.
+tasks.named("assemble") {
+	dependsOn(cyclonedxBom)
+}
+
 publishing {
 	publications {
 		register<MavenPublication>("mavenJava") {
 			from(components["java"])
+			artifact(cyclonedxBom) {
+				classifier = "cyclonedx"
+				extension = "json"
+			}
 			pom {
 				val prefix = "Z3 Java Bindings"
 				val nameString = refinery.nameSuffix.map { "$prefix ($it)" }.orElse(prefix)
@@ -137,9 +166,8 @@ publishing {
 // The signing configuration below realizes the publication before the projects applying this convention get to set
 // {@code refinery.intervalLib}. Therefore, we can only add these licenses once the project has been evaluated.
 afterEvaluate {
-	val intervalLib = refinery.intervalLib.orNull
-	val intervalLibs = intervalLib?.let { listOf(it) } ?: IntervalLib.values().toList()
-	val bundledAsBinary = intervalLib != null
+	val intervalLibs = distributedIntervalLibs.get()
+	val bundledAsBinary = refinery.intervalLib.isPresent
 	publishing.publications.named<MavenPublication>("mavenJava") {
 		pom {
 			licenses {

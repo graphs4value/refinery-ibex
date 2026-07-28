@@ -28,5 +28,5 @@ IBEX is available under the [GNU LESSER GENERAL PUBLIC LICENSE, Version 3](https
 The source code and build scripts for the Refinery IBEX Java Bindings are available under [The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt),
 but the **packaged Maven artifacts** contain works derived from IBEX and are available under the [GNU LESSER GENERAL PUBLIC LICENSE, Version 3](https://raw.githubusercontent.com/ibex-team/ibex-lib/refs/heads/master/COPYING.LESSER).
 
-Refinery complies with the [REUSE Specification – Version 3.0](https://reuse.software/) to provide copyright and licensing information to each file, including files available under other licenses.
+Refinery complies with the [REUSE Specification – Version 3.3](https://reuse.software/) to provide copyright and licensing information to each file, including files available under other licenses.
 For more information, see the comments headers in each file and the license texts in the [LICENSES](LICENSES/) directory.

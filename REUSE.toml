@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 The Refinery Authors <https://refinery.tools/>
+#
+# SPDX-License-Identifier: CC0-1.0
+
+version = 1
+SPDX-PackageName = "Refinery IBEX Java Bindings"
+SPDX-PackageSupplier = "Dániel Varró <daniel.varro@liu.se>"
+SPDX-PackageDownloadLocation = "https://github.com/graphs4value/refinery-z3"
